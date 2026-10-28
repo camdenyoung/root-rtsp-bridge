@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+config/*
+!config/config.example.yaml
+logs/*
+!logs/.gitkeep
+
+.env
