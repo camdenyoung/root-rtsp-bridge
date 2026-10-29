@@ -67,7 +67,7 @@ rules:
   - listen_port: 8554
     downstream_transport: udp
     upstream:
-      url: rtsp://protect-ip:7447/camera-stream-path?enableSrtp
+      url: rtsp://protect-ip:7447/camera-stream-path
       transport: tcp
     credentials:
       mode: drop
@@ -85,8 +85,25 @@ rules:
 
 Upstream RTSPS validates certificates and hostnames. For a private/self-signed
 Protect certificate, mount the appropriate CA certificate in `config` and set
-`tls_ca_file`; use a hostname/IP covered by that certificate. Verification cannot
-be disabled. RTSPS encrypts RTSP control and interleaved TCP media; UDP media does
+`tls_ca_file`; use a hostname/IP covered by that certificate. Alternatively, to
+accept a self-signed certificate without mounting a CA, configure:
+
+```yaml
+upstream:
+  url: rtsps://PROTECT-IP:7441/STREAMPATH
+  transport: tcp
+  tls_verify: false
+```
+
+`tls_verify` defaults to `true` and must be a YAML boolean. Setting it to `false`
+disables certificate-chain and hostname verification, accepting any certificate
+(including expired certificates). Traffic remains encrypted, but the server's
+identity is not checked. The proxy logs `tls_verification_disabled` whenever it
+connects in this mode; `tls_ca_file` is ignored. Restart/recreate the container
+after changing configuration. Leave `?enableSrtp` off the Protect URL: this proxy
+does not decrypt SRTP media.
+
+RTSPS encrypts RTSP control and interleaved TCP media; UDP media does
 not automatically become encrypted. The incoming Bosch connection is plain RTSP.
 
 Credential modes apply separately to every rule:

@@ -79,6 +79,8 @@ def load_config(path):
         if type(port) is not int or not 1 <= port <= 65535 or port in seen:
             raise ValueError('Listening ports must be valid and unique')
         seen.add(port)
+        if type(rule['upstream'].get('tls_verify', True)) is not bool:
+            raise ValueError('upstream.tls_verify must be a YAML boolean')
         target = urlsplit(rule['upstream']['url'])
         if target.scheme not in ('rtsp', 'rtsps') or not target.hostname or target.username or target.password or target.fragment:
             raise ValueError('Upstream URL must be rtsp/rtsps without embedded credentials or fragments')
@@ -368,7 +370,15 @@ class Session:
                     self.stage = 'upstream_connect'
                     target = urlsplit(self.url)
                     self.log(logging.INFO, 'upstream_connect', host=target.hostname, port=target.port or (322 if target.scheme == 'rtsps' else 554), tls=target.scheme == 'rtsps')
-                    context = ssl.create_default_context(cafile=self.rule['upstream'].get('tls_ca_file')) if target.scheme == 'rtsps' else None
+                    context = None
+                    if target.scheme == 'rtsps':
+                        if self.rule['upstream'].get('tls_verify', True):
+                            context = ssl.create_default_context(cafile=self.rule['upstream'].get('tls_ca_file'))
+                        else:
+                            self.log(logging.WARNING, 'tls_verification_disabled', host=target.hostname)
+                            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                            context.check_hostname = False
+                            context.verify_mode = ssl.CERT_NONE
                     self.upreader, self.upwriter = await asyncio.wait_for(asyncio.open_connection(target.hostname, target.port or (322 if context else 554), ssl=context, limit=LIMIT), self.config.get('request_timeout', 15))
                     self.tasks.append(asyncio.create_task(self.upstream_reader()))
                 root_parts = urlsplit(local_uri)
@@ -436,6 +446,8 @@ async def serve(config):
         task.add_done_callback(sessions.discard)
     try:
         for rule in config['rules']:
+            if urlsplit(rule['upstream']['url']).scheme == 'rtsps' and not rule['upstream'].get('tls_verify', True):
+                LOG.warning('event=tls_verification_disabled rule_port=%s', rule['listen_port'])
             server = await asyncio.start_server(lambda r, w, rule=rule: accept(r, w, rule), config.get('listen_host', '0.0.0.0'), rule['listen_port'], limit=LIMIT)
             servers.append(server)
             LOG.info('event=listening port=%s', rule['listen_port'])
