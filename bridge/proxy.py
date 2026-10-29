@@ -75,6 +75,8 @@ def load_config(path):
         raise ValueError('At least one routing rule is required')
     seen = set()
     for rule in config['rules']:
+        if type(rule.get('audio_enabled', True)) is not bool:
+            raise ValueError('audio_enabled must be a YAML boolean')
         port = rule['listen_port']
         if type(port) is not int or not 1 <= port <= 65535 or port in seen:
             raise ValueError('Listening ports must be valid and unique')
@@ -308,6 +310,18 @@ class Session:
 
     def rewrite_sdp(self, body, root):
         lines = body.decode().splitlines()
+        if not self.rule.get('audio_enabled', True):
+            filtered = []
+            dropping = False
+            audio_tracks = 0
+            for line in lines:
+                if line.startswith('m='):
+                    dropping = line.split()[0].lower() == 'm=audio'
+                    audio_tracks += int(dropping)
+                if not dropping:
+                    filtered.append(line)
+            lines = filtered
+            self.log(logging.INFO, 'audio_filtered', removed_tracks=audio_tracks)
         for index, line in enumerate(lines):
             if line.startswith('a=control:'):
                 control = line[len('a=control:'):]

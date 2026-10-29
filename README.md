@@ -5,7 +5,7 @@ A Python RTSP proxy for clients such as Bosch TouchOne keypads that request only
 upstream camera URL, including its stream path and query string.
 
 The proxy relays encoded RTP/RTCP packets unchanged. It does not decode, transcode,
-select audio tracks, or decrypt SRTP media. RTSP control uses TCP. Media transport
+transcode audio, or decrypt SRTP media. RTSP control uses TCP. Media transport
 is independently configurable on each side: UDP ↔ UDP, UDP ↔ TCP, TCP ↔ TCP,
 and TCP ↔ UDP. Multiple tracks and client sessions have separate transport state.
 
@@ -131,6 +131,24 @@ there is no shared camera subscription, automatic reconnect, or transcoding yet.
 After a connection fails, the client must reconnect. Unicast IPv4 is the initial
 supported media mode. Upstream UDP must use the connected server's IP and advertised
 server ports; multicast and third-party media source addresses are unsupported.
+
+## Disabling audio
+
+Set `audio_enabled: false` on a routing rule to advertise only non-audio tracks
+and prevent normal RTSP clients from setting up audio:
+
+```yaml
+rules:
+  - listen_port: 8554
+    audio_enabled: false
+    # Keep your existing downstream_transport, upstream, and credentials settings.
+```
+
+The default is `true`, preserving existing behavior. This is useful when TouchOne
+continues playing camera audio while the camera view is closed. Complete audio
+SDP sections are removed before track URLs are mapped; video is forwarded without
+transcoding. Logs report `audio_filtered` with the number of removed tracks.
+After editing the configuration, restart the container and reconnect the client.
 
 ## Logging and fault finding
 

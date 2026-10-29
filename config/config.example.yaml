@@ -10,6 +10,7 @@ logging:
 rules:
   - listen_port: 8554
     downstream_transport: udp
+    audio_enabled: true # Set false for video-only clients such as TouchOne.
     upstream:
       url: rtsp://192.168.82.2:7447/REPLACE_WITH_STREAM_PATH
       transport: tcp

@@ -7,7 +7,7 @@ from bridge.proxy import Session, read_message, encode, authentication, load_con
 
 
 class ProxyTests(unittest.IsolatedAsyncioTestCase):
-    async def exercise(self, down_tcp, up_tcp, mode='drop', challenge=None):
+    async def exercise(self, down_tcp, up_tcp, mode='drop', challenge=None, audio_enabled=True):
         upstream_requests = []
         upstream_connections = []
         sessions = []
@@ -68,6 +68,8 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
                         response['content-base'] = f'rtsp://127.0.0.1:{up_port}/secret/'
                         response['content-type'] = 'application/sdp'
                         data = b'v=0\r\nc=IN IP4 127.0.0.1\r\na=control:*\r\nm=video 0 RTP/AVP 96\r\na=rtpmap:96 H264/90000\r\na=control:trackID=0\r\n'
+                        if not audio_enabled:
+                            data = data.replace(b'm=video', b'm=audio 0 RTP/AVP 97\r\na=rtpmap:97 MPEG4-GENERIC/16000/1\r\na=control:audio-aac\r\nm=audio 0 RTP/AVP 98\r\na=rtpmap:98 opus/48000/2\r\na=control:audio-opus\r\nm=video')
                     elif method == 'SETUP':
                         response['session'] = 'up-session;timeout=60'
                         if up_tcp:
@@ -92,7 +94,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
 
         upstream_server = await asyncio.start_server(upstream, '127.0.0.1', 0)
         up_port = upstream_server.sockets[0].getsockname()[1]
-        rule = {'listen_port': 8554, 'downstream_transport': 'tcp' if down_tcp else 'udp',
+        rule = {'audio_enabled': audio_enabled, 'listen_port': 8554, 'downstream_transport': 'tcp' if down_tcp else 'udp',
                 'upstream': {'url': f'rtsp://127.0.0.1:{up_port}/secret?token=private', 'transport': 'tcp' if up_tcp else 'udp'},
                 'credentials': {'mode': mode, 'username': 'replacement', 'password': 'password'}}
         def accept(r,w):
@@ -117,6 +119,11 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
             response = await request('DESCRIBE', auth=mode=='passthrough')
             self.assertIn('200', response[0])
             self.assertNotIn(b'secret', response[2])
+            if not audio_enabled:
+                self.assertNotIn(b'm=audio', response[2])
+                self.assertNotIn(b'opus', response[2])
+                self.assertNotIn(b'MPEG4-GENERIC', response[2])
+                self.assertIn(b'm=video', response[2])
             self.assertIn((root+'track/0').encode(), response[2])
             if down_tcp:
                 transport = 'RTP/AVP/TCP;unicast;interleaved=4-5'
@@ -164,6 +171,12 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
                 with self.subTest(down_tcp=down, up_tcp=up):
                     await self.exercise(down,up)
 
+    async def test_video_only_transport_matrix(self):
+        for down in (False, True):
+            for up in (False, True):
+                with self.subTest(down_tcp=down, up_tcp=up):
+                    await self.exercise(down, up, audio_enabled=False)
+
     async def test_replace_basic(self):
         await self.exercise(True,True,'replace','Basic realm="camera"')
 
@@ -175,6 +188,24 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_audio_default_preserves_tracks(self):
+        from unittest.mock import Mock
+        writer = Mock()
+        writer.get_extra_info.return_value = ('127.0.0.1', 1234)
+        session = Session(None, writer, {'listen_port': 8554, 'upstream': {'url': 'rtsp://camera/stream/'}}, {})
+        session.base = 'rtsp://camera/stream/'
+        sdp = b'v=0\r\nm=audio 0 RTP/AVP 97\r\na=control:audio\r\nm=video 0 RTP/AVP 96\r\na=control:video\r\n'
+        result = session.rewrite_sdp(sdp, 'rtsp://bridge:8554/')
+        self.assertIn(b'm=audio', result)
+        self.assertEqual(set(session.maps.values()), {'rtsp://camera/stream/audio', 'rtsp://camera/stream/video'})
+
+    def test_audio_flag_must_be_boolean(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.yaml'
+            path.write_text('rules:\n  - listen_port: 8554\n    audio_enabled: "false"\n    upstream:\n      url: rtsp://localhost/path\n')
+            with self.assertRaisesRegex(ValueError, 'audio_enabled'):
+                load_config(path)
+
     def test_example(self):
         self.assertEqual(load_config('config/config.example.yaml')['rules'][0]['listen_port'],8554)
 
