@@ -24,6 +24,10 @@ mkdir -p logs
 printf 'BRIDGE_UID=%s\nBRIDGE_GID=%s\n' "$(id -u)" "$(id -g)" > .env
 ```
 
+If you have a permissions issue when running the printf command, try the following instead.
+```
+printf 'BRIDGE_UID=%s\nBRIDGE_GID=%s\n' "$(id -u)" "$(id -g)" | sudo tee .env >/dev/null
+```
 Edit `config/config.yaml` and replace the upstream example stream path. Use your
 actual Protect URL, preserving its query string. The committed example contains
 no live camera token. Start with `downstream_transport: udp` and upstream
