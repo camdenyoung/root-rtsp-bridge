@@ -5,6 +5,9 @@ import re
 import time
 from urllib.parse import urlsplit
 
+from . import __version__
+from .dashboard_ui import HTML
+
 
 def redacted_upstream_url(url):
     target = urlsplit(url)
@@ -64,7 +67,7 @@ class Dashboard:
                              'packets': list(session.packets), 'bytes': list(session.bytes),
                              'tracks': [{'index': t['index'], 'packets': list(t['packets']), 'bytes': list(t['bytes'])} for t in session.tracks],
                              'sdp': session.sdp})
-        return {'uptime': format_duration(time.monotonic() - self.started), 'uptime_seconds': int(time.monotonic() - self.started),
+        return {'version': __version__, 'uptime': format_duration(time.monotonic() - self.started), 'uptime_seconds': int(time.monotonic() - self.started),
                 'connected': len(sessions), 'playing': sum(s['state'] == 'playing' for s in sessions),
                 'routes': [{'listen_port': r['listen_port'],
                             'connected': sum(s['route_port'] == r['listen_port'] for s in sessions), 'downstream_transport': r.get('downstream_transport', 'udp'),
@@ -99,13 +102,3 @@ class Dashboard:
         finally:
             writer.close()
             await writer.wait_closed()
-
-
-HTML = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Root RTSP Bridge</title>
-<style>body{font:16px system-ui;margin:2rem 0;padding:0 clamp(1rem,2vw,3rem);background:#101923;color:#e4edf5}h1,h2{color:#8dded1}#routes,#sessions{overflow-x:auto}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.7rem;border-bottom:1px solid #385063;vertical-align:top}th{white-space:nowrap}td:last-child{overflow-wrap:anywhere}#sessions td:last-child{min-width:20rem;max-width:40rem}@media(max-width:700px){td,th{padding:.5rem;font-size:.875rem}}pre{white-space:pre-wrap}small{color:#afbecb}</style>
-<h1>Root RTSP Bridge</h1><small>Read-only monitoring · Refreshes every 2 seconds · Credentials hidden</small><p id="health">Loading…</p>
-<h2>Configured routes</h2><p>Upstream URLs include paths and queries; embedded usernames and passwords are hidden. TLS verification applies to RTSPS connections.</p><div id="routes"></div><h2>Sessions</h2><p>Media counters include RTP and RTCP. Direction: camera → client / client → camera. Counters cover each connected session.</p><div id="sessions"></div>
-<script>
-function table(target, heads, rows){const t=document.createElement('table');const h=t.insertRow();heads.forEach(v=>{const c=document.createElement('th');c.textContent=v;h.append(c)});rows.forEach(row=>{const r=t.insertRow();row.forEach(v=>{const c=r.insertCell();c.textContent=v})});document.getElementById(target).replaceChildren(t)}
-async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();document.getElementById('health').textContent=s.connected+' connected · '+s.playing+' playing · Uptime '+s.uptime+' · Updated '+new Date().toLocaleTimeString();table('routes',['Port','Connections','Upstream URL','TLS verify','Credential mode','Client transport','Camera transport','Audio'],s.routes.map(r=>[r.listen_port,r.connected,r.upstream_url,String(r.tls_verify),r.credential_mode,r.downstream_transport,r.upstream_transport,r.audio_enabled?'Enabled':'Disabled']));table('sessions',['Session / route','Source IP','State / age','Packets → / ←','Bytes → / ←','Resolution (SDP)','Track counters / available SDP'],s.sessions.map(r=>[r.id+' / '+r.route_port,r.source_ip,r.state+' / '+r.age,r.packets.join(' / '),r.bytes.join(' / '),(r.sdp||[]).filter(t=>t.media==='video').map(t=>t.resolution?t.resolution.width+' × '+t.resolution.height:'Unavailable').join(', ')||'Unavailable',JSON.stringify({tracks:r.tracks,sdp:r.sdp})]));if(!s.sessions.length)document.getElementById('sessions').textContent='No connected sessions.'}catch(e){document.getElementById('health').textContent='Dashboard unavailable; displayed values may be stale.'}finally{setTimeout(refresh,2000)}}refresh();
-</script></html>'''

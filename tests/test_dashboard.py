@@ -2,6 +2,7 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
+from bridge import __version__
 from bridge.dashboard import Dashboard, sdp_details, format_duration, redacted_upstream_url
 
 
@@ -29,6 +30,7 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
             data = json.loads(response.split(b'\r\n\r\n', 1)[1])
             self.assertEqual(data['routes'][0]['upstream_url'], 'rtsp://camera/secret-path?token=secret-token')
             self.assertNotIn('secret-token', json.dumps(data['sessions']))
+            self.assertEqual(data['version'], __version__)
             self.assertEqual((data['connected'], data['playing']), (1, 1))
             self.assertEqual(data['sessions'][0]['bytes'], [100, 20])
             self.assertEqual(data['sessions'][0]['source_ip'], '192.0.2.10')
