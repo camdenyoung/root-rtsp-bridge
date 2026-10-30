@@ -5,6 +5,7 @@ import re
 import time
 from urllib.parse import urlsplit
 
+from . import __version__
 from .dashboard_ui import HTML
 
 
@@ -66,7 +67,7 @@ class Dashboard:
                              'packets': list(session.packets), 'bytes': list(session.bytes),
                              'tracks': [{'index': t['index'], 'packets': list(t['packets']), 'bytes': list(t['bytes'])} for t in session.tracks],
                              'sdp': session.sdp})
-        return {'uptime': format_duration(time.monotonic() - self.started), 'uptime_seconds': int(time.monotonic() - self.started),
+        return {'version': __version__, 'uptime': format_duration(time.monotonic() - self.started), 'uptime_seconds': int(time.monotonic() - self.started),
                 'connected': len(sessions), 'playing': sum(s['state'] == 'playing' for s in sessions),
                 'routes': [{'listen_port': r['listen_port'],
                             'connected': sum(s['route_port'] == r['listen_port'] for s in sessions), 'downstream_transport': r.get('downstream_transport', 'udp'),
