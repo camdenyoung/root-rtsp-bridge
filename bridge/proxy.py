@@ -511,9 +511,9 @@ def main():
     # TRACE deliberately has the same sanitized protocol detail as DEBUG; no raw dumps.
     handler = RotatingFileHandler(directory / 'bridge.log', maxBytes=settings.get('max_bytes', 10485760), backupCount=settings.get('backups', 5))
     logging.basicConfig(level=logging.DEBUG if level == 'TRACE' else level,
-                        format='%(asctime)sZ %(levelname)s %(message)s', handlers=[logging.StreamHandler(), handler])
-    import time
-    logging.Formatter.converter = time.gmtime
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        datefmt='%Y-%m-%dT%H:%M:%S%z',
+                        handlers=[logging.StreamHandler(), handler])
     asyncio.run(serve(config))
 
 

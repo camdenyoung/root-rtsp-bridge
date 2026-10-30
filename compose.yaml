@@ -8,6 +8,8 @@ services:
     volumes:
       - ./config:/config:ro
       - ./logs:/logs
+      # Use the Linux host timezone, including daylight-saving transitions.
+      - /etc/localtime:/etc/localtime:ro
     logging:
       driver: json-file
       options:
