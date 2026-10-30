@@ -202,3 +202,50 @@ Optional container startup/persistence smoke test (requires Docker access):
 docker build -t root-rtsp-bridge:test .
 python3 tests/container_smoke.py
 ```
+
+## Read-only dashboard
+
+Enable the optional dashboard in `config/config.yaml`, then restart the bridge:
+
+```yaml
+dashboard:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+```
+
+Open `http://127.0.0.1:8080/` on the bridge host, or use an SSH tunnel
+(`ssh -L 8080:127.0.0.1:8080 user@bridge-host`) to view it locally. The dashboard
+is disabled by default. It has no authentication; bind to a LAN address only on a
+trusted network with appropriate firewall restrictions. Compose host networking
+also applies to this listener.
+
+The page refreshes every two seconds using `GET /api/status`. It shows configured
+route ports, per-route live connection counts, transports and audio settings,
+current connected/playing counts,
+each session's requesting client source IP, state and age, and session/track
+packet and byte counters in both
+directions. Successful PLAY and PAUSE responses update state; closed sessions are
+removed. Counters include RTP and RTCP observed by the relay, including packets
+that may subsequently be dropped under backpressure; they are not decoded frames
+or delivery guarantees. Counts cover currently connected sessions, not historical
+totals.
+
+After a successful DESCRIBE, available SDP details show media types and recognized
+codec names, payload types, clock rates and channel counts, after audio filtering.
+Before DESCRIBE, SDP is unavailable (`null` in the API). Session details omit raw
+SDP, control URLs, credentials, upstream session tokens and arbitrary SDP attributes. Unknown codecs are omitted. The HTTP interface
+supports only GET and offers no configuration or playback controls.
+
+Dashboard uptime and session age use readable units from seconds through years
+(up to two nonzero units; a year is 365 days). The API retains `uptime_seconds`
+and `age_seconds` for numeric consumers. Video resolution is shown when the SDP
+includes an `a=framesize` attribute, otherwise it is unavailable. These dimensions
+are advertised by the camera, not measured from decoded video; the bridge does
+not inspect video bitstreams to infer resolution.
+
+Configured routes also show the upstream URL including its path and query string, `tls_verify` (defaults to true; applies to RTSPS), and credential mode
+(defaults to drop). Embedded URL usernames/passwords, configured credentials and
+URL fragments remain hidden. Stream tokens in paths or queries are visible in
+the configured route URL. Tables use the available screen width and scroll horizontally on small
+screens.

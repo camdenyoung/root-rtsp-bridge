@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 import secrets
 import signal
+import time
+from .dashboard import Dashboard, sdp_details
 import socket
 import ssl
 from urllib.parse import urlsplit, urlunsplit, urljoin
@@ -102,6 +104,14 @@ def load_config(path):
     low, high = config.get('udp_port_range', [20000, 20199])
     if not 1024 <= low < high <= 65535:
         raise ValueError('Invalid UDP port range')
+    dashboard = config.get('dashboard', {})
+    if not isinstance(dashboard, dict) or type(dashboard.get('enabled', False)) is not bool:
+        raise ValueError('dashboard.enabled must be a YAML boolean')
+    if not isinstance(dashboard.get('host', '127.0.0.1'), str):
+        raise ValueError('dashboard.host must be a string')
+    port = dashboard.get('port', 8080)
+    if type(port) is not int or not 1 <= port <= 65535 or (dashboard.get('enabled', False) and port in seen):
+        raise ValueError('Dashboard port must be valid and separate from RTSP ports')
     return config
 
 
@@ -116,6 +126,9 @@ class Datagram(asyncio.DatagramProtocol):
 class Session:
     def __init__(self, reader, writer, rule, config):
         self.reader, self.writer, self.rule, self.config = reader, writer, rule, config
+        self.started = time.monotonic()
+        self.state = 'connected'
+        self.sdp = None
         self.id = secrets.token_hex(6)
         self.upreader = self.upwriter = None
         self.tasks, self.sockets = [], []
@@ -322,6 +335,7 @@ class Session:
                     filtered.append(line)
             lines = filtered
             self.log(logging.INFO, 'audio_filtered', removed_tracks=audio_tracks)
+        self.sdp = sdp_details(('\r\n'.join(lines)).encode())
         for index, line in enumerate(lines):
             if line.startswith('a=control:'):
                 control = line[len('a=control:'):]
@@ -405,6 +419,8 @@ class Session:
                 else:
                     result = await self.request(method, uri, forwarded, body)
                 status, reply_headers, reply_body = result
+                if status.split()[1] == '200' and method in ('PLAY', 'PAUSE'):
+                    self.state = 'playing' if method == 'PLAY' else 'paused'
                 reply_headers = dict(reply_headers)
                 reply_headers['cseq'] = cseq
                 if method == 'DESCRIBE' and status.split()[1] == '200':
@@ -454,8 +470,12 @@ class Session:
 
 async def serve(config):
     servers, sessions = [], set()
+    dashboard = Dashboard(config)
     def accept(reader, writer, rule):
-        task = asyncio.create_task(Session(reader, writer, rule, config).run())
+        session = Session(reader, writer, rule, config)
+        dashboard.sessions[session.id] = session
+        task = asyncio.create_task(session.run())
+        task.add_done_callback(lambda _: dashboard.sessions.pop(session.id, None))
         sessions.add(task)
         task.add_done_callback(sessions.discard)
     try:
@@ -465,6 +485,9 @@ async def serve(config):
             server = await asyncio.start_server(lambda r, w, rule=rule: accept(r, w, rule), config.get('listen_host', '0.0.0.0'), rule['listen_port'], limit=LIMIT)
             servers.append(server)
             LOG.info('event=listening port=%s', rule['listen_port'])
+        settings = config.get('dashboard', {})
+        if settings.get('enabled', False):
+            servers.append(await asyncio.start_server(dashboard.handle, settings.get('host', '127.0.0.1'), settings.get('port', 8080), limit=8192))
         stop = asyncio.Event()
         for sig in (signal.SIGINT, signal.SIGTERM):
             asyncio.get_running_loop().add_signal_handler(sig, stop.set)
