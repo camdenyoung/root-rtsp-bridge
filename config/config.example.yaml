@@ -22,8 +22,8 @@ rules:
       # username: upstream-user
       # password: upstream-password
 
-# Optional read-only HTTP monitoring. Loopback only by default.
+# Optional read-only HTTP monitoring. Allows remote access when enabled.
 dashboard:
   enabled: false
-  host: 127.0.0.1
+  host: 0.0.0.0
   port: 8080
