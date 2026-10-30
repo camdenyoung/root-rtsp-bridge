@@ -223,7 +223,8 @@ also applies to this listener.
 The page refreshes every two seconds using `GET /api/status`. It shows configured
 route ports, per-route live connection counts, transports and audio settings,
 current connected/playing counts,
-session state and age, and session/track packet and byte counters in both
+each session's requesting client source IP, state and age, and session/track
+packet and byte counters in both
 directions. Successful PLAY and PAUSE responses update state; closed sessions are
 removed. Counters include RTP and RTCP observed by the relay, including packets
 that may subsequently be dropped under backpressure; they are not decoded frames

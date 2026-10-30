@@ -9,7 +9,7 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
     async def test_http_read_only_and_redacted(self):
         rule = {'listen_port': 8554, 'upstream': {'url': 'rtsp://secret-user:secret-password@camera/secret-path?token=secret-token'}, 'credentials': {'username': 'secret-user', 'password': 'secret-password'}}
         dashboard = Dashboard({'rules': [rule]})
-        session = SimpleNamespace(id='safe-id', rule=rule, state='playing', started=dashboard.started,
+        session = SimpleNamespace(id='safe-id', peer='192.0.2.10', rule=rule, state='playing', started=dashboard.started,
                                   packets=[2, 1], bytes=[100, 20], tracks=[{'index': 0, 'packets': [2, 1], 'bytes': [100, 20]}],
                                   sdp=sdp_details(b's=secret-token\r\nm=video 0 RTP/AVP 96\r\na=rtpmap:96 H264/90000\r\na=control:rtsp://camera/secret-path\r\na=fmtp:96 secret-password\r\n'))
         dashboard.sessions[session.id] = session
@@ -29,6 +29,7 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
             data = json.loads(response.split(b'\r\n\r\n', 1)[1])
             self.assertEqual((data['connected'], data['playing']), (1, 1))
             self.assertEqual(data['sessions'][0]['bytes'], [100, 20])
+            self.assertEqual(data['sessions'][0]['source_ip'], '192.0.2.10')
             self.assertEqual(data['sessions'][0]['sdp'][0]['codecs'][0]['codec'], 'H264')
             self.assertIn(b'405 Method Not Allowed', await request('POST', '/api/status'))
             self.assertIn(b'404 Not Found', await request('GET', '/config'))
@@ -60,7 +61,7 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
         dashboard = Dashboard({'rules': rules})
         for index, rule in enumerate((rules[0], rules[0], rules[1])):
             dashboard.sessions[index] = SimpleNamespace(
-                id=str(index), rule=rule, state='connected', started=dashboard.started,
+                id=str(index), peer=f'192.0.2.{index + 1}', rule=rule, state='connected', started=dashboard.started,
                 packets=[0, 0], bytes=[0, 0], tracks=[], sdp=None)
         def counts():
             return [r['connected'] for r in dashboard.snapshot()['routes']]
