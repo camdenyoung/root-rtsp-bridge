@@ -152,8 +152,18 @@ After editing the configuration, restart the container and reconnect the client.
 
 ## Logging and fault finding
 
-Both console and `/logs/bridge.log` receive UTC timestamps, a session ID and the
-incoming rule port. File logging rotates at `logging.max_bytes` with
+Both console and `/logs/bridge.log` receive local timestamps with a numeric UTC
+offset (for example, `2026-10-30T14:30:00+1100`), a session ID and the incoming
+rule port. Compose mounts `/etc/localtime` read-only from the Linux host so logs
+use its timezone and daylight-saving rules. Native runs use the process local
+timezone. After updating Compose, recreate the container once to apply the mount:
+
+```sh
+docker compose up -d --build --force-recreate
+```
+
+Docker’s own timestamps (when using `docker logs --timestamps`) are separate
+from the application timestamps. File logging rotates at `logging.max_bytes` with
 `logging.backups` retained copies. Docker console logging also rotates.
 
 - `INFO`: connection lifecycle, RTSP response codes, authentication challenges,
