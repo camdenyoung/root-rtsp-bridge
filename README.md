@@ -202,3 +202,36 @@ Optional container startup/persistence smoke test (requires Docker access):
 docker build -t root-rtsp-bridge:test .
 python3 tests/container_smoke.py
 ```
+
+## Read-only dashboard
+
+Enable the optional dashboard in `config/config.yaml`, then restart the bridge:
+
+```yaml
+dashboard:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+```
+
+Open `http://127.0.0.1:8080/` on the bridge host, or use an SSH tunnel
+(`ssh -L 8080:127.0.0.1:8080 user@bridge-host`) to view it locally. The dashboard
+is disabled by default. It has no authentication; bind to a LAN address only on a
+trusted network with appropriate firewall restrictions. Compose host networking
+also applies to this listener.
+
+The page refreshes every two seconds using `GET /api/status`. It shows configured
+route ports, transports and audio settings, current connected/playing counts,
+session state and age, and session/track packet and byte counters in both
+directions. Successful PLAY and PAUSE responses update state; closed sessions are
+removed. Counters include RTP and RTCP observed by the relay, including packets
+that may subsequently be dropped under backpressure; they are not decoded frames
+or delivery guarantees. Counts cover currently connected sessions, not historical
+totals.
+
+After a successful DESCRIBE, available SDP details show media types and recognized
+codec names, payload types, clock rates and channel counts, after audio filtering.
+Before DESCRIBE, SDP is unavailable (`null` in the API). Raw SDP, control URLs,
+stream paths, query tokens, credentials, upstream session tokens and arbitrary
+SDP attributes are never included. Unknown codecs are omitted. The HTTP interface
+supports only GET and offers no configuration or playback controls.

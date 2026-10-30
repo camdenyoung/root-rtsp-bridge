@@ -21,3 +21,9 @@ rules:
       mode: drop # drop, replace, passthrough
       # username: upstream-user
       # password: upstream-password
+
+# Optional read-only HTTP monitoring. Loopback only by default.
+dashboard:
+  enabled: false
+  host: 127.0.0.1
+  port: 8080

@@ -11,6 +11,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         upstream_requests = []
         upstream_connections = []
         sessions = []
+        live_sessions = []
         datagrams = []
         payload = b'\x80\x60\x00\x01opaque-h264-payload'
         rtcp = b'\x80\xc9\x00\x01feedback'
@@ -98,7 +99,9 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
                 'upstream': {'url': f'rtsp://127.0.0.1:{up_port}/secret?token=private', 'transport': 'tcp' if up_tcp else 'udp'},
                 'credentials': {'mode': mode, 'username': 'replacement', 'password': 'password'}}
         def accept(r,w):
-            task = asyncio.create_task(Session(r,w,rule,{'listen_host':'127.0.0.1','udp_port_range':[22000,23999]}).run())
+            session = Session(r,w,rule,{'listen_host':'127.0.0.1','udp_port_range':[22000,23999]})
+            live_sessions.append(session)
+            task = asyncio.create_task(session.run())
             sessions.append(task)
         proxy = await asyncio.start_server(accept, '127.0.0.1', 0)
         port = proxy.sockets[0].getsockname()[1]
@@ -138,6 +141,8 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(upstream_requests[-1][1], f'rtsp://127.0.0.1:{up_port}/secret/trackID=0')
             response = await request('PLAY', extra={'session':'up-session'})
             self.assertIn('200', response[0])
+            self.assertEqual(live_sessions[0].state, 'playing')
+            self.assertEqual(live_sessions[0].sdp[0]['media'], 'video')
             if down_tcp:
                 self.assertEqual(await asyncio.wait_for(read_message(reader),3), (4,payload))
                 writer.write(b'$\x05'+len(rtcp).to_bytes(2,'big')+rtcp)
@@ -146,6 +151,9 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(await asyncio.wait_for(received_udp,3),payload)
                 down_udp[1].sendto(rtcp, ('127.0.0.1', proxy_rtcp_port))
             await asyncio.wait_for(upstream_got_rtcp.wait(),3)
+            response = await request('PAUSE')
+            self.assertIn('200', response[0])
+            self.assertEqual(live_sessions[0].state, 'paused')
             response = await request('TEARDOWN')
             self.assertIn('200',response[0])
             if challenge:
