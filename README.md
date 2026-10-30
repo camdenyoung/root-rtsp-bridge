@@ -244,3 +244,9 @@ and `age_seconds` for numeric consumers. Video resolution is shown when the SDP
 includes an `a=framesize` attribute, otherwise it is unavailable. These dimensions
 are advertised by the camera, not measured from decoded video; the bridge does
 not inspect video bitstreams to infer resolution.
+
+Configured routes also show a redacted upstream URL (scheme, host and configured
+port only), `tls_verify` (defaults to true; applies to RTSPS), and credential mode
+(defaults to drop). URL user information, paths, queries and fragments remain
+hidden. Tables use the available screen width and scroll horizontally on small
+screens.

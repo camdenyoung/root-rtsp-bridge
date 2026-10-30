@@ -2,7 +2,7 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
-from bridge.dashboard import Dashboard, sdp_details, format_duration
+from bridge.dashboard import Dashboard, sdp_details, format_duration, redacted_upstream_url
 
 
 class DashboardTests(unittest.IsolatedAsyncioTestCase):
@@ -70,3 +70,16 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counts(), [1, 1, 0])
         dashboard.sessions.clear()
         self.assertEqual(counts(), [0, 0, 0])
+
+    def test_route_settings_and_redacted_urls(self):
+        rules = [
+            {'listen_port': 8554, 'upstream': {'url': 'rtsps://camera:7441/private?token=secret', 'tls_verify': False}, 'credentials': {'mode': 'replace', 'username': 'hidden', 'password': 'hidden'}},
+            {'listen_port': 8555, 'upstream': {'url': 'rtsp://camera/private'}},
+        ]
+        routes = Dashboard({'rules': rules}).snapshot()['routes']
+        self.assertEqual(routes[0]['upstream_url'], 'rtsps://camera:7441/[hidden]')
+        self.assertFalse(routes[0]['tls_verify'])
+        self.assertEqual(routes[0]['credential_mode'], 'replace')
+        self.assertTrue(routes[1]['tls_verify'])
+        self.assertEqual(routes[1]['credential_mode'], 'drop')
+        self.assertEqual(redacted_upstream_url('rtsp://user:password@[::1]:554/token?secret#secret'), 'rtsp://[::1]:554/[hidden]')

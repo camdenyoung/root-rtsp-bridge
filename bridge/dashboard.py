@@ -3,6 +3,16 @@ import asyncio
 import json
 import re
 import time
+from urllib.parse import urlsplit
+
+
+def redacted_upstream_url(url):
+    target = urlsplit(url)
+    host = target.hostname or ''
+    if ':' in host:
+        host = f'[{host}]'
+    port = f':{target.port}' if target.port is not None else ''
+    return f'{target.scheme}://{host}{port}/[hidden]'
 
 
 def format_duration(seconds):
@@ -58,6 +68,9 @@ class Dashboard:
                 'routes': [{'listen_port': r['listen_port'],
                             'connected': sum(s['route_port'] == r['listen_port'] for s in sessions), 'downstream_transport': r.get('downstream_transport', 'udp'),
                             'upstream_transport': r['upstream'].get('transport', 'tcp'),
+                            'upstream_url': redacted_upstream_url(r['upstream'].get('url', '')),
+                            'tls_verify': r['upstream'].get('tls_verify', True),
+                            'credential_mode': r.get('credentials', {}).get('mode', 'drop'),
                             'audio_enabled': r.get('audio_enabled', True)} for r in self.config['rules']],
                 'sessions': sessions}
 
@@ -88,10 +101,10 @@ class Dashboard:
 
 
 HTML = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Root RTSP Bridge</title>
-<style>body{font:16px system-ui;margin:2rem auto;padding:0 1rem;max-width:1100px;background:#101923;color:#e4edf5}h1,h2{color:#8dded1}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.7rem;border-bottom:1px solid #385063}pre{white-space:pre-wrap}small{color:#afbecb}</style>
+<style>body{font:16px system-ui;margin:2rem 0;padding:0 clamp(1rem,2vw,3rem);background:#101923;color:#e4edf5}h1,h2{color:#8dded1}#routes,#sessions{overflow-x:auto}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.7rem;border-bottom:1px solid #385063;vertical-align:top}th{white-space:nowrap}td:last-child{overflow-wrap:anywhere}#sessions td:last-child{min-width:20rem;max-width:40rem}@media(max-width:700px){td,th{padding:.5rem;font-size:.875rem}}pre{white-space:pre-wrap}small{color:#afbecb}</style>
 <h1>Root RTSP Bridge</h1><small>Read-only monitoring · Refreshes every 2 seconds · Credentials and stream tokens hidden</small><p id="health">Loading…</p>
-<h2>Configured routes</h2><div id="routes"></div><h2>Sessions</h2><p>Media counters include RTP and RTCP. Direction: camera → client / client → camera. Counters cover each connected session.</p><div id="sessions"></div>
+<h2>Configured routes</h2><p>Upstream URL paths and queries are hidden. TLS verification applies to RTSPS connections.</p><div id="routes"></div><h2>Sessions</h2><p>Media counters include RTP and RTCP. Direction: camera → client / client → camera. Counters cover each connected session.</p><div id="sessions"></div>
 <script>
 function table(target, heads, rows){const t=document.createElement('table');const h=t.insertRow();heads.forEach(v=>{const c=document.createElement('th');c.textContent=v;h.append(c)});rows.forEach(row=>{const r=t.insertRow();row.forEach(v=>{const c=r.insertCell();c.textContent=v})});document.getElementById(target).replaceChildren(t)}
-async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();document.getElementById('health').textContent=s.connected+' connected · '+s.playing+' playing · Uptime '+s.uptime+' · Updated '+new Date().toLocaleTimeString();table('routes',['Port','Connections','Client transport','Camera transport','Audio'],s.routes.map(r=>[r.listen_port,r.connected,r.downstream_transport,r.upstream_transport,r.audio_enabled?'Enabled':'Disabled']));table('sessions',['Session / route','Source IP','State / age','Packets → / ←','Bytes → / ←','Resolution (SDP)','Track counters / available SDP'],s.sessions.map(r=>[r.id+' / '+r.route_port,r.source_ip,r.state+' / '+r.age,r.packets.join(' / '),r.bytes.join(' / '),(r.sdp||[]).filter(t=>t.media==='video').map(t=>t.resolution?t.resolution.width+' × '+t.resolution.height:'Unavailable').join(', ')||'Unavailable',JSON.stringify({tracks:r.tracks,sdp:r.sdp})]));if(!s.sessions.length)document.getElementById('sessions').textContent='No connected sessions.'}catch(e){document.getElementById('health').textContent='Dashboard unavailable; displayed values may be stale.'}finally{setTimeout(refresh,2000)}}refresh();
+async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();document.getElementById('health').textContent=s.connected+' connected · '+s.playing+' playing · Uptime '+s.uptime+' · Updated '+new Date().toLocaleTimeString();table('routes',['Port','Connections','Upstream URL (redacted)','TLS verify','Credential mode','Client transport','Camera transport','Audio'],s.routes.map(r=>[r.listen_port,r.connected,r.upstream_url,String(r.tls_verify),r.credential_mode,r.downstream_transport,r.upstream_transport,r.audio_enabled?'Enabled':'Disabled']));table('sessions',['Session / route','Source IP','State / age','Packets → / ←','Bytes → / ←','Resolution (SDP)','Track counters / available SDP'],s.sessions.map(r=>[r.id+' / '+r.route_port,r.source_ip,r.state+' / '+r.age,r.packets.join(' / '),r.bytes.join(' / '),(r.sdp||[]).filter(t=>t.media==='video').map(t=>t.resolution?t.resolution.width+' × '+t.resolution.height:'Unavailable').join(', ')||'Unavailable',JSON.stringify({tracks:r.tracks,sdp:r.sdp})]));if(!s.sessions.length)document.getElementById('sessions').textContent='No connected sessions.'}catch(e){document.getElementById('health').textContent='Dashboard unavailable; displayed values may be stale.'}finally{setTimeout(refresh,2000)}}refresh();
 </script></html>'''
