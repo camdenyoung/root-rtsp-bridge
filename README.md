@@ -233,9 +233,8 @@ totals.
 
 After a successful DESCRIBE, available SDP details show media types and recognized
 codec names, payload types, clock rates and channel counts, after audio filtering.
-Before DESCRIBE, SDP is unavailable (`null` in the API). Raw SDP, control URLs,
-stream paths, query tokens, credentials, upstream session tokens and arbitrary
-SDP attributes are never included. Unknown codecs are omitted. The HTTP interface
+Before DESCRIBE, SDP is unavailable (`null` in the API). Session details omit raw
+SDP, control URLs, credentials, upstream session tokens and arbitrary SDP attributes. Unknown codecs are omitted. The HTTP interface
 supports only GET and offers no configuration or playback controls.
 
 Dashboard uptime and session age use readable units from seconds through years
@@ -245,8 +244,8 @@ includes an `a=framesize` attribute, otherwise it is unavailable. These dimensio
 are advertised by the camera, not measured from decoded video; the bridge does
 not inspect video bitstreams to infer resolution.
 
-Configured routes also show a redacted upstream URL (scheme, host and configured
-port only), `tls_verify` (defaults to true; applies to RTSPS), and credential mode
-(defaults to drop). URL user information, paths, queries and fragments remain
-hidden. Tables use the available screen width and scroll horizontally on small
+Configured routes also show the upstream URL including its path and query string, `tls_verify` (defaults to true; applies to RTSPS), and credential mode
+(defaults to drop). Embedded URL usernames/passwords, configured credentials and
+URL fragments remain hidden. Stream tokens in paths or queries are visible in
+the configured route URL. Tables use the available screen width and scroll horizontally on small
 screens.

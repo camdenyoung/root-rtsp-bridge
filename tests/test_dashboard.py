@@ -24,9 +24,11 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
             return response
         try:
             response = await request('GET', '/api/status')
-            for secret in (b'secret-user', b'secret-password', b'secret-path', b'secret-token'):
+            for secret in (b'secret-user', b'secret-password'):
                 self.assertNotIn(secret, response)
             data = json.loads(response.split(b'\r\n\r\n', 1)[1])
+            self.assertEqual(data['routes'][0]['upstream_url'], 'rtsp://camera/secret-path?token=secret-token')
+            self.assertNotIn('secret-token', json.dumps(data['sessions']))
             self.assertEqual((data['connected'], data['playing']), (1, 1))
             self.assertEqual(data['sessions'][0]['bytes'], [100, 20])
             self.assertEqual(data['sessions'][0]['source_ip'], '192.0.2.10')
@@ -77,9 +79,9 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
             {'listen_port': 8555, 'upstream': {'url': 'rtsp://camera/private'}},
         ]
         routes = Dashboard({'rules': rules}).snapshot()['routes']
-        self.assertEqual(routes[0]['upstream_url'], 'rtsps://camera:7441/[hidden]')
+        self.assertEqual(routes[0]['upstream_url'], 'rtsps://camera:7441/private?token=secret')
         self.assertFalse(routes[0]['tls_verify'])
         self.assertEqual(routes[0]['credential_mode'], 'replace')
         self.assertTrue(routes[1]['tls_verify'])
         self.assertEqual(routes[1]['credential_mode'], 'drop')
-        self.assertEqual(redacted_upstream_url('rtsp://user:password@[::1]:554/token?secret#secret'), 'rtsp://[::1]:554/[hidden]')
+        self.assertEqual(redacted_upstream_url('rtsp://user:password@[::1]:554/token?secret#secret'), 'rtsp://[::1]:554/token?secret')
