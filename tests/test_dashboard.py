@@ -54,3 +54,18 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(details[0]['resolution'], {'width': 1920, 'height': 1080})
         self.assertNotIn('resolution', sdp_details(b'm=video 0 RTP/AVP 96\r\na=framesize:96 0-1080')[0])
         self.assertNotIn('resolution', sdp_details(b'm=audio 0 RTP/AVP 96\r\na=framesize:96 1920-1080')[0])
+
+    def test_route_connection_counts(self):
+        rules = [{'listen_port': port, 'upstream': {}} for port in (8554, 8555, 8556)]
+        dashboard = Dashboard({'rules': rules})
+        for index, rule in enumerate((rules[0], rules[0], rules[1])):
+            dashboard.sessions[index] = SimpleNamespace(
+                id=str(index), rule=rule, state='connected', started=dashboard.started,
+                packets=[0, 0], bytes=[0, 0], tracks=[], sdp=None)
+        def counts():
+            return [r['connected'] for r in dashboard.snapshot()['routes']]
+        self.assertEqual(counts(), [2, 1, 0])
+        del dashboard.sessions[0]
+        self.assertEqual(counts(), [1, 1, 0])
+        dashboard.sessions.clear()
+        self.assertEqual(counts(), [0, 0, 0])

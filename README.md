@@ -221,7 +221,8 @@ trusted network with appropriate firewall restrictions. Compose host networking
 also applies to this listener.
 
 The page refreshes every two seconds using `GET /api/status`. It shows configured
-route ports, transports and audio settings, current connected/playing counts,
+route ports, per-route live connection counts, transports and audio settings,
+current connected/playing counts,
 session state and age, and session/track packet and byte counters in both
 directions. Successful PLAY and PAUSE responses update state; closed sessions are
 removed. Counters include RTP and RTCP observed by the relay, including packets
