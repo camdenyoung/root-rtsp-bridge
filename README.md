@@ -235,3 +235,10 @@ Before DESCRIBE, SDP is unavailable (`null` in the API). Raw SDP, control URLs,
 stream paths, query tokens, credentials, upstream session tokens and arbitrary
 SDP attributes are never included. Unknown codecs are omitted. The HTTP interface
 supports only GET and offers no configuration or playback controls.
+
+Dashboard uptime and session age use readable units from seconds through years
+(up to two nonzero units; a year is 365 days). The API retains `uptime_seconds`
+and `age_seconds` for numeric consumers. Video resolution is shown when the SDP
+includes an `a=framesize` attribute, otherwise it is unavailable. These dimensions
+are advertised by the camera, not measured from decoded video; the bridge does
+not inspect video bitstreams to infer resolution.
